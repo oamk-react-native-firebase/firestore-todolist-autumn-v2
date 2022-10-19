@@ -1,11 +1,155 @@
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, View, Text, Button, TextInput, Alert, ScrollView } from 'react-native';
+import { 
+  addDoc, 
+  collection, 
+  deleteDoc, 
+  doc, 
+  getDocs, 
+  onSnapshot, 
+  orderBy, 
+  query } from 'firebase/firestore';
+import { db, TODOS_REF } from './firebase/Config';
+import { TodoItem } from './components/TodoItem';
+import { TodoCheckedItem } from './components/TodoCheckedItem';
 
 export default function App() {
+
+  const [newTodo, setNewTodo] = useState('');
+  const [todos, setTodos] = useState({});
+
+  useEffect(() => {
+    const q = query(collection(db, TODOS_REF), orderBy('todoItem'))
+    onSnapshot(q, (querySnapshot) => {
+      setTodos(querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })))
+    })
+  }, []);
+
+  const addNewTodo = async() => {
+    try {
+      if (newTodo.trim() !== "") {
+        await addDoc(collection(db, TODOS_REF), {
+          done: false,
+          todoItem: newTodo
+        });
+        setNewTodo('');
+      }
+    }
+    catch (error) {
+      console.log(error.message);
+    }
+  }
+
+  const removeTodos = async() => {
+    try {
+      const querySnapshot = await getDocs(collection(db, TODOS_REF));
+      querySnapshot.forEach((todo) => {
+        removeTodo(todo.id)
+      })
+    }
+    catch (error) {
+      console.log(error.message);
+    }
+  }
+    
+  const removeTodo = async(id) => {
+    try {
+      await deleteDoc(doc(db, TODOS_REF, id));
+    }
+    catch (error) {
+      console.log(error.message);
+    }
+  }
+
+  const createTwoButtonAlert = () => Alert.alert(
+    "Todolist", "Remove all items?", [{
+      text: "Cancel",
+      onPress: () => console.log("Cancel Pressed"),
+      style: "cancel"
+    },
+    { 
+      text: "OK", onPress: () => removeTodos()
+    }],
+    { cancelable: false }
+  );
+
+  const filterTodos = (filterValue) => {
+    let nbrOfFilteredTodos = 0;
+    for (let i = 0; i < todos.length; i++ ) {
+      if (todos[i].done === filterValue) {
+        nbrOfFilteredTodos++;
+      }
+    }
+    return nbrOfFilteredTodos;
+  }
+
+  let todosKeys = Object.keys(todos);
+  let nbrOfUncheckedTodos = filterTodos(false);
+  let nbrOfCheckedTodos = filterTodos(true);
+  
   return (
-    <View style={styles.container}>
-      <Text>Open up App.js to start working on your app!</Text>
-      <StatusBar style="auto" />
+    <View 
+      style={styles.container}
+      contentContainerStyle={styles.contentContainerStyle}>
+      <Text style={styles.header}>Todolist ({todosKeys.length})</Text>
+      <View style={styles.newItem}>
+        <TextInput
+          placeholder='Add new todo'
+          value={newTodo}
+          style={styles.textInput}
+          onChangeText={setNewTodo}
+        />
+      </View>
+      <View style={styles.buttonStyle}>
+        <Button 
+          title="Add new Todo item"
+          onPress={() => addNewTodo()}
+        />
+      </View>
+      <Text style={styles.subheader}>Unchecked ({nbrOfUncheckedTodos})</Text>
+      <View 
+        contentContainerStyle={styles.contentContainerStyle}>
+        <ScrollView>
+          {todosKeys.length > 0 ? (
+            todosKeys.map((key, i) => (
+              !todos[i].done &&
+                <TodoItem
+                  key={key}
+                  id={todos[i]}
+                  todoItem={todos[i]}
+                />
+            ))
+          ) : (
+            <Text style={styles.infoText}>There are no unchecked items</Text>
+          )}
+        </ScrollView>
+      </View>
+      <View 
+        contentContainerStyle={styles.contentContainerStyle}>
+        <Text style={styles.subheader}>Checked ({nbrOfCheckedTodos})</Text>
+        <ScrollView>
+          {todosKeys.length > 0 ? (
+            todosKeys.map((key, i) => (
+              todos[i].done &&
+                <TodoCheckedItem
+                  key={key}
+                  id={todos[i]}
+                  todoItem={todos[i]}
+                />
+            ))
+          ) : (
+            <Text style={styles.infoText}>There are no checked items</Text>
+          )}
+        </ScrollView>
+      </View>
+      <View style={styles.removeButtonStyle}>
+        <Button 
+          title="Remove all todos" 
+          onPress={() => createTwoButtonAlert()} />
+      </View>
     </View>
   );
 }
@@ -13,8 +157,47 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: 'white',
+    marginTop: 50,
+    marginLeft: 30,
+    height: '20%',
   },
+  contentContainerStyle: {
+    alignItems: 'flex-start',
+  },
+  header: {
+    fontSize: 30
+  },
+  subheader: {
+    marginTop: 10,
+    fontSize: 20
+  },
+  newItem: {
+    marginVertical: 10,
+    alignItems: 'flex-start',
+  },
+  infoText: {
+    marginTop: 5,
+    marginBottom: 5,
+    fontSize: 15
+  },
+  buttonStyle: {
+    marginBottom: 10,
+    width: "80%"
+  },
+  removeButtonStyle: {
+    marginTop: 20,
+    marginBottom: 10,
+    width: "80%"
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: '#afafaf',
+    width: '80%',
+    borderRadius: 5,
+    paddingHorizontal: 5,
+    paddingVertical: 5,
+    marginVertical: 20,
+    fontSize: 18
+  }
 });
